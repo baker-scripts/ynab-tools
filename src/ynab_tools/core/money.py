@@ -13,11 +13,11 @@ def milliunits_to_dollars(milliunits: int) -> float:
 
 def dollars_to_milliunits(dollars: float) -> int:
     """Convert dollars to YNAB milliunits."""
-    return int(dollars * 1000)
+    return round(dollars * 1000)
 
 
 def fmt_dollars(amount: float) -> str:
     """Format a dollar amount with sign for negative values."""
     if amount < 0:
-        return f"-${abs(amount):,.0f}"
-    return f"${amount:,.0f}"
+        return f"-${abs(amount):,.2f}"
+    return f"${amount:,.2f}"
