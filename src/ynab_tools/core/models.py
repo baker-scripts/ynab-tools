@@ -66,6 +66,14 @@ class Category(BaseModel):
     deleted: bool = False
 
 
+class Payee(BaseModel):
+    """YNAB payee."""
+
+    id: str
+    name: str
+    deleted: bool = False
+
+
 class Transaction(BaseModel):
     """YNAB transaction."""
 
@@ -73,6 +81,7 @@ class Transaction(BaseModel):
     account_id: str
     amount: int = Field(description="Amount in milliunits")
     date: str
+    payee_id: str | None = None
     payee_name: str | None = None
     memo: str | None = None
     cleared: str = ""
