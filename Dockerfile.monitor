@@ -1,0 +1,28 @@
+FROM python:3.13-alpine AS builder
+
+WORKDIR /app
+
+# Install uv for faster dependency resolution
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+COPY pyproject.toml uv.lock ./
+COPY src/ src/
+
+# Install core deps only (no amazon extras)
+RUN uv sync --frozen --no-dev --no-editable
+
+FROM python:3.13-alpine
+
+WORKDIR /app
+
+# Non-root user
+RUN adduser -D -u 1000 ynab
+USER ynab
+
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/src /app/src
+
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+
+CMD ["ynab-tools", "daemon", "--monitor-only"]
