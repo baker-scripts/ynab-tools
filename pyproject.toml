@@ -1,0 +1,82 @@
+[project]
+name = "ynab-tools"
+dynamic = ["version"]
+description = "YNAB balance monitoring and Amazon transaction annotation"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "httpx>=0.28.0",
+    "pydantic[email]>=2.11.0",
+    "pydantic-settings>=2.8.0",
+    "apprise>=1.9.0",
+    "loguru>=0.7.3",
+    "typer>=0.15.0",
+    "rich>=14.0.0",
+]
+
+[project.optional-dependencies]
+amazon = [
+    "amazon-orders>=3.2.15",
+    "cache-decorator>=2.2.0",
+]
+ai = [
+    "openai>=1.12.0",
+]
+
+[project.urls]
+Repository = "https://github.com/baker-scripts/ynab-tools"
+Issues = "https://github.com/baker-scripts/ynab-tools/issues"
+
+[project.scripts]
+ynab-tools = "ynab_tools.cli.app:app"
+
+[tool.hatch.version]
+path = "src/ynab_tools/__init__.py"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "pyright>=1.1.390",
+    "ruff>=0.11.0",
+]
+test = [
+    "faker>=37.1.0",
+    "polyfactory>=2.20.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pytest-sugar>=1.0.0",
+    "respx>=0.22.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+
+[tool.semantic_release]
+version_variables = ["src/ynab_tools/__init__.py:__version__"]
+branch = "main"
+commit_message = "chore(release): {version}"
+build_command = ""
+tag_format = "v{version}"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "refactor", "docs", "style", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "refactor"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

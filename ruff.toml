@@ -1,0 +1,18 @@
+target-version = "py312"
+line-length = 120
+
+[lint]
+extend-select = ["B", "C90", "RUF", "UP", "I", "SIM"]
+extend-ignore = ["E501"]
+
+[lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+quote-annotations = true
+
+[lint.per-file-ignores]
+"tests/*" = ["I001", "E402"]
+
+[format]
+quote-style = "double"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
