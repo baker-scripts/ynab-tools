@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from loguru import logger
@@ -50,10 +51,12 @@ def _get_end_date(monitor_days: str) -> date:
     """
     today = datetime.now().date()
     if monitor_days:
-        return today + __import__("datetime").timedelta(days=int(monitor_days))
+        try:
+            days = int(monitor_days)
+        except ValueError:
+            raise ValueError(f"MONITOR_DAYS must be an integer, got: {monitor_days!r}") from None
+        return today + timedelta(days=days)
     # End of current month
-    import calendar
-
     last_day = calendar.monthrange(today.year, today.month)[1]
     return today.replace(day=last_day)
 

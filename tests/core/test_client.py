@@ -6,7 +6,7 @@ import httpx
 import pytest
 import respx
 
-from ynab_tools.core.client import YNAB_BASE, YnabClient, _sanitize_error
+from ynab_tools.core.client import YNAB_BASE, YnabClient, sanitize_error
 from ynab_tools.exceptions import FatalError, TransientError, YnabAPIError
 
 
@@ -20,23 +20,23 @@ def client():
 class TestSanitizeError:
     def test_redacts_bearer_token(self):
         text = "Authorization: Bearer sk-secret-token-123"
-        result = _sanitize_error(text)
+        result = sanitize_error(text)
         assert "sk-secret-token-123" not in result
         assert "[REDACTED]" in result
 
     def test_redacts_key_value(self):
         text = 'token: "my-secret-value"'
-        result = _sanitize_error(text)
+        result = sanitize_error(text)
         assert "my-secret-value" not in result
 
     def test_truncates_long_body(self):
         text = "x" * 1000
-        result = _sanitize_error(text, max_length=100)
+        result = sanitize_error(text, max_length=100)
         assert len(result) <= 100
 
     def test_preserves_safe_text(self):
         text = "Something went wrong with the budget"
-        assert _sanitize_error(text) == text
+        assert sanitize_error(text) == text
 
 
 class TestClientGet:

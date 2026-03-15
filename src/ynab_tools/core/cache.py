@@ -14,7 +14,7 @@ from loguru import logger
 
 def cache_path(cache_dir: str, name: str) -> str:
     """Return a cache file path, ensuring the directory exists."""
-    os.makedirs(cache_dir, exist_ok=True)
+    os.makedirs(cache_dir, mode=0o700, exist_ok=True)
     return os.path.join(cache_dir, name)
 
 
@@ -45,8 +45,9 @@ def read_cache(filepath: str, ttl_seconds: int) -> dict[str, Any] | None:
 def write_cache(filepath: str, data: dict[str, Any]) -> None:
     """Write JSON data to a cache file with file locking."""
     stamped = {**data, "cached_at": time.time()}
-    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-    with open(filepath, "w") as f:
+    Path(filepath).parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    fd = os.open(filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:
             json.dump(stamped, f)

@@ -55,6 +55,6 @@ class TestCalculateMonthlyExpenses:
             },
         }
 
-        avg_daily, avg_monthly = calculate_monthly_expenses(client, tmp_cache_dir, dry_run=True)
+        _avg_daily, avg_monthly = calculate_monthly_expenses(client, tmp_cache_dir, dry_run=True)
         assert avg_monthly == 1000.0
         assert client.get.call_count == 13  # 13 months

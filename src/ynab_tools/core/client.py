@@ -16,12 +16,12 @@ _RETRY_MAX = 3
 _RETRY_BACKOFFS = [30, 60, 120]
 
 
-def _sanitize_error(body: str, max_length: int = 500) -> str:
+def sanitize_error(body: str, max_length: int = 500) -> str:
     """Remove sensitive data from API error responses before logging."""
     text = body[:max_length]
     text = re.sub(r"(Bearer\s+)\S+", r"\1[REDACTED]", text, flags=re.IGNORECASE)
     text = re.sub(
-        r'(["\']?(?:token|key|secret|password)["\']?\s*[:=]\s*)["\']?\S+',
+        r'(["\']?(?:access_token|token|key|secret|password|authorization)["\']?\s*[:=]\s*)["\']?\S+',
         r"\1[REDACTED]",
         text,
         flags=re.IGNORECASE,
@@ -84,11 +84,14 @@ class YnabClient:
                 # Auth errors — fail immediately
                 if response.status_code in (401, 403):
                     body = response.text
-                    raise FatalError(f"YNAB API auth error ({response.status_code}): {_sanitize_error(body)}")
+                    raise FatalError(f"YNAB API auth error ({response.status_code}): {sanitize_error(body)}")
 
                 # Rate limit — honor Retry-After
                 if response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", _RETRY_BACKOFFS[attempt]))
+                    try:
+                        retry_after = max(1, min(int(response.headers.get("Retry-After", 0)), 300))
+                    except (ValueError, TypeError):
+                        retry_after = _RETRY_BACKOFFS[attempt]
                     logger.warning(
                         f"YNAB API rate limited, waiting {retry_after}s (attempt {attempt + 1}/{_RETRY_MAX})"
                     )
@@ -106,7 +109,7 @@ class YnabClient:
                     )
                     time.sleep(wait)
                     last_exc = YnabAPIError(
-                        f"Server error ({response.status_code}): {_sanitize_error(body)}",
+                        f"Server error ({response.status_code}): {sanitize_error(body)}",
                         status_code=response.status_code,
                     )
                     continue
@@ -115,7 +118,7 @@ class YnabClient:
                 if response.status_code >= 400:
                     body = response.text
                     raise YnabAPIError(
-                        f"YNAB API error ({response.status_code}): {_sanitize_error(body)}",
+                        f"YNAB API error ({response.status_code}): {sanitize_error(body)}",
                         status_code=response.status_code,
                     )
 

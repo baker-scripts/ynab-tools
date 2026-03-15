@@ -26,6 +26,9 @@ def fetch_scheduled_transactions_delta(
 
     if cached and "server_knowledge" in cached and "transactions" in cached:
         sk = cached["server_knowledge"]
+        if not isinstance(sk, int):
+            logger.warning("Corrupt delta cache: server_knowledge is not an integer, doing full fetch")
+            return _full_fetch(client, filepath)
         try:
             data = client.get(f"/budgets/{client.budget_id}/scheduled_transactions?last_knowledge_of_server={sk}")
         except YnabAPIError:
