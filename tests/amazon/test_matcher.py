@@ -93,7 +93,7 @@ class TestLocateByAmount:
 
     def test_fuzzy_just_outside_boundary(self):
         orders = [_make_order("11.01")]
-        idx, is_fuzzy = locate_by_amount(orders, Decimal("-10.00"), tolerance=1.00)
+        idx, _is_fuzzy = locate_by_amount(orders, Decimal("-10.00"), tolerance=1.00)
         assert idx is None
 
     def test_multiple_exact_returns_first(self):
@@ -105,7 +105,7 @@ class TestLocateByAmount:
     def test_negative_amount_handling(self):
         """YNAB amounts are negative for outflows; matcher inverts them."""
         orders = [_make_order("25.00")]
-        idx, is_fuzzy = locate_by_amount(orders, Decimal("-25.00"))
+        idx, _is_fuzzy = locate_by_amount(orders, Decimal("-25.00"))
         assert idx == 0
 
     def test_large_amount(self):

@@ -174,7 +174,7 @@ class TestGetYnabTransactions:
 
         client = MagicMock()
         client.budget_id = "test-budget"
-        txns, payee = get_ynab_transactions(client)
+        _txns, payee = get_ynab_transactions(client)
         assert payee.name == "Amazon"
 
     @patch("ynab_tools.amazon.sync.get_settings")
