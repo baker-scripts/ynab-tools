@@ -21,8 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user
-RUN useradd -m -u 1000 ynab
+# Non-root user + writable dirs for amazon-orders
+RUN useradd -m -u 1000 ynab \
+    && mkdir -p /app/output /data/amazon-cache /data/ynab-cache \
+    && chown -R ynab:ynab /app/output /data
 USER ynab
 
 COPY --from=builder /app/.venv /app/.venv
