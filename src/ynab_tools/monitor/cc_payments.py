@@ -15,9 +15,9 @@ from ynab_tools.monitor.scheduler import _add_months
 
 
 def parse_cc_close_dates(close_dates_str: str) -> dict[str, int]:
-    """Parse CC close dates from comma-separated 'CardName=day' format.
+    """Parse CC close dates from comma-separated 'CardName:day' format.
 
-    Example: "Chase Freedom=15,Amex Gold=25"
+    Example: "Chase Freedom:15,Amex Gold:25"
     Returns: {"Chase Freedom": 15, "Amex Gold": 25}
     """
     result: dict[str, int] = {}
@@ -25,9 +25,9 @@ def parse_cc_close_dates(close_dates_str: str) -> dict[str, int]:
         return result
     for pair in close_dates_str.split(","):
         pair = pair.strip()
-        if "=" not in pair:
+        if ":" not in pair:
             continue
-        name, day_str = pair.rsplit("=", 1)
+        name, day_str = pair.rsplit(":", 1)
         try:
             result[name.strip()] = int(day_str.strip())
         except ValueError:

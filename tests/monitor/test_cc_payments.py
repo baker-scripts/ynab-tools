@@ -14,7 +14,7 @@ from ynab_tools.monitor.cc_payments import (
 
 class TestParseCcCloseDates:
     def test_basic(self):
-        result = parse_cc_close_dates("Chase Freedom=15,Amex Gold=25")
+        result = parse_cc_close_dates("Chase Freedom:15,Amex Gold:25")
         assert result == {"Chase Freedom": 15, "Amex Gold": 25}
 
     def test_empty(self):
@@ -22,18 +22,18 @@ class TestParseCcCloseDates:
         assert parse_cc_close_dates("  ") == {}
 
     def test_single(self):
-        assert parse_cc_close_dates("Card=1") == {"Card": 1}
+        assert parse_cc_close_dates("Card:1") == {"Card": 1}
 
     def test_invalid_day(self):
-        result = parse_cc_close_dates("Card=abc")
+        result = parse_cc_close_dates("Card:abc")
         assert result == {}
 
-    def test_no_equals(self):
+    def test_no_colon(self):
         result = parse_cc_close_dates("JustAName")
         assert result == {}
 
     def test_whitespace(self):
-        result = parse_cc_close_dates("  Card A = 5 , Card B = 20 ")
+        result = parse_cc_close_dates("  Card A : 5 , Card B : 20 ")
         assert result == {"Card A": 5, "Card B": 20}
 
 
