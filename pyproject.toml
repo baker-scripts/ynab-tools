@@ -77,6 +77,13 @@ allowed_tags = ["feat", "fix", "perf", "refactor", "docs", "style", "test", "bui
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf", "refactor"]
 
+[tool.uv]
+# amazoncaptcha pins requests<2.31 and pillow<10 — override with safe versions
+override-dependencies = [
+    "requests>=2.32.4",
+    "pillow>=10.4.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

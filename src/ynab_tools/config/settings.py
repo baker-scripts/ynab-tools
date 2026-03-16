@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     ynab_payee_name_to_be_processed: str = "Amazon - Needs Memo"
     ynab_payee_name_processing_completed: str = "Amazon"
     ynab_use_markdown: bool = False
-    match_empty_memo: bool = False
+    match_empty_memo: bool = True
     amount_match_tolerance: float = 2.00
     date_mismatch_tolerance_days: int = 0
     auto_accept_date_mismatch: bool = False

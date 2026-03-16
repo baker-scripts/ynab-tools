@@ -160,15 +160,15 @@ class TestGetYnabTransactions:
     @patch("ynab_tools.amazon.sync.get_settings")
     @patch("ynab_tools.amazon.sync.fetch_transactions_by_payee")
     @patch("ynab_tools.amazon.sync.fetch_payees")
-    def test_finds_target_payee(self, mock_payees, mock_txns, mock_settings):
+    def test_default_uses_amazon_payee(self, mock_payees, mock_txns, mock_settings):
+        """Default match_empty_memo=True uses 'Amazon' payee, no temp payee needed."""
         mock_settings.return_value = MagicMock(
             ynab_payee_name_processing_completed="Amazon",
-            ynab_payee_name_to_be_processed="Amazon - Needs Memo",
-            match_empty_memo=False,
+            match_empty_memo=True,
+            approved_statuses_list=["approved", "unapproved"],
         )
         mock_payees.return_value = [
             Payee(id="p1", name="Amazon"),
-            Payee(id="p2", name="Amazon - Needs Memo"),
         ]
         mock_txns.return_value = []
 
@@ -176,16 +176,36 @@ class TestGetYnabTransactions:
         client.budget_id = "test-budget"
         _txns, payee = get_ynab_transactions(client)
         assert payee.name == "Amazon"
+        mock_txns.assert_called_once_with(client, "p1")
 
     @patch("ynab_tools.amazon.sync.get_settings")
     @patch("ynab_tools.amazon.sync.fetch_payees")
-    def test_raises_on_missing_payee(self, mock_payees, mock_settings):
+    def test_raises_on_missing_target_payee(self, mock_payees, mock_settings):
         mock_settings.return_value = MagicMock(
             ynab_payee_name_processing_completed="Amazon",
-            match_empty_memo=False,
+            match_empty_memo=True,
         )
         mock_payees.return_value = []
 
         client = MagicMock()
         with pytest.raises(ConfigError, match="Amazon"):
             get_ynab_transactions(client)
+
+    @patch("ynab_tools.amazon.sync.get_settings")
+    @patch("ynab_tools.amazon.sync.fetch_payees")
+    def test_legacy_mode_missing_temp_payee_returns_empty(self, mock_payees, mock_settings):
+        """Legacy match_empty_memo=False gracefully returns empty when temp payee missing."""
+        mock_settings.return_value = MagicMock(
+            ynab_payee_name_processing_completed="Amazon",
+            ynab_payee_name_to_be_processed="Amazon - Needs Memo",
+            match_empty_memo=False,
+        )
+        mock_payees.return_value = [
+            Payee(id="p1", name="Amazon"),
+        ]
+
+        client = MagicMock()
+        client.budget_id = "test-budget"
+        txns, payee = get_ynab_transactions(client)
+        assert txns == []
+        assert payee.name == "Amazon"
