@@ -23,9 +23,11 @@ uv run ynab-tools monitor --dry-run   # Test monitor
 uv run ynab-tools amazon --dry-run    # Test amazon
 ```
 
-## Co-Authorship
+## Versioning
 
-All commits include: `Co-Authored-By: Claude Code <noreply@anthropic.com>`
+ZeroVer (0ver) — major version stays at 0. Bump minor for features, patch for fixes.
+Version source: `src/ynab_tools/__init__.py` (read by hatchling).
+Release: `git tag v0.x.y && git push --tags` triggers CI to build Docker images and create GitHub release.
 
 ## Conventions
 
@@ -35,3 +37,11 @@ All commits include: `Co-Authored-By: Claude Code <noreply@anthropic.com>`
 - JSON + fcntl file locking for cache (no pickle)
 - Loguru for logging
 - Typer for CLI
+
+## Docker
+
+Two images built from one repo:
+- `ynab-tools` (Dockerfile.amazon) — full unified image with chromium for Amazon scraping (~900MB)
+- `ynab-tools-monitor` (Dockerfile.monitor) — lightweight monitor-only image (~50MB)
+
+Production runs the unified image: `ynab-tools daemon` (both monitor + Amazon sync).

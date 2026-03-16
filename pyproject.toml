@@ -54,29 +54,6 @@ minversion = "6.0"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
 
-[tool.semantic_release]
-version_variables = ["src/ynab_tools/__init__.py:__version__"]
-branch = "main"
-commit_message = "chore(release): {version}"
-build_command = ""
-tag_format = "v{version}"
-
-[tool.semantic_release.branches.main]
-match = "main"
-prerelease = false
-
-[tool.semantic_release.remote]
-type = "github"
-token = { env = "GH_TOKEN" }
-
-[tool.semantic_release.changelog]
-changelog_file = "CHANGELOG.md"
-
-[tool.semantic_release.commit_parser_options]
-allowed_tags = ["feat", "fix", "perf", "refactor", "docs", "style", "test", "build", "ci", "chore"]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf", "refactor"]
-
 [tool.uv]
 # amazoncaptcha pins requests<2.31 and pillow<10 — override with safe versions
 override-dependencies = [
