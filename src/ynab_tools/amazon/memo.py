@@ -104,7 +104,7 @@ def generate_ai_summary(
 
         raise ConfigError("OpenAI API key required for AI summarization")
 
-    from openai import APIError, AuthenticationError, OpenAI, RateLimitError
+    from openai import APIError, AuthenticationError, OpenAI, RateLimitError  # type: ignore[import-not-found]
 
     from ynab_tools.amazon.prompts import MARKDOWN_PROMPT, PLAIN_PROMPT, SYSTEM_PROMPT
 

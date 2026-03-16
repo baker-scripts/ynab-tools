@@ -185,6 +185,7 @@ def get_cc_payment_amounts(
         accounts_data = client.get(f"/budgets/{client.budget_id}/accounts")
         all_accounts = accounts_data["accounts"]
 
+    assert all_accounts is not None  # guaranteed by branch above
     cc_accounts, cc_cleared = _find_cc_accounts(all_accounts)
     close_dates = parse_cc_close_dates(close_dates_str)
     cc_payments = _payments_from_close_dates(client, close_dates, cc_accounts, cc_cleared)

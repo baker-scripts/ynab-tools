@@ -108,7 +108,7 @@ class AmazonTransactionRetriever:
         """Get Amazon transactions linked to their orders."""
         # Lazy import: cache_decorator is an optional dep (ynab-tools[amazon])
         warnings.filterwarnings("ignore", message="invalid escape sequence", module="cache_decorator")
-        from cache_decorator import Cache
+        from cache_decorator import Cache  # type: ignore[import-untyped]
 
         # Build cached wrapper on first call
         if not hasattr(self, "_cached_fn"):
@@ -148,7 +148,7 @@ class AmazonTransactionRetriever:
         return result
 
     def _fetch_orders(self) -> list[Any]:
-        from amazonorders.orders import AmazonOrders
+        from amazonorders.orders import AmazonOrders  # type: ignore[import-not-found]
 
         if "orders" in self._memo:
             return self._memo["orders"]
@@ -167,7 +167,7 @@ class AmazonTransactionRetriever:
         return all_orders
 
     def _fetch_transactions(self) -> list[Any]:
-        from amazonorders.transactions import AmazonTransactions
+        from amazonorders.transactions import AmazonTransactions  # type: ignore[import-not-found]
 
         if "transactions" in self._memo:
             return self._memo["transactions"]
@@ -178,7 +178,7 @@ class AmazonTransactionRetriever:
         return txns
 
     def _session(self) -> Any:
-        from amazonorders.session import AmazonSession
+        from amazonorders.session import AmazonSession  # type: ignore[import-not-found]
 
         if "session" in self._memo:
             return self._memo["session"]
