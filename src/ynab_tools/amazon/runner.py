@@ -105,6 +105,10 @@ def _fetch_amazon(transaction_days: int, force_refresh: bool) -> list[AmazonOrde
             force_refresh=force_refresh,
         )
         return retriever.get_transactions()
+    except ImportError as e:
+        raise FatalSyncError(
+            f"Amazon optional dependencies not installed: {e}. Install with: uv sync --extra amazon"
+        ) from e
     except AmazonAuthError as e:
         raise FatalSyncError(f"Amazon auth failed: {e}") from e
     except (ConnectionError, TimeoutError) as e:
