@@ -91,28 +91,40 @@ def _parse_windows(windows_str: str) -> list[tuple[int, int]]:
 
 
 def _in_window(windows: list[tuple[int, int]]) -> bool:
-    """Check if current time is within any of the specified windows."""
+    """Check if current time is within any of the specified windows.
+
+    Handles cross-midnight windows (e.g., 22-2 means 22:00-01:59).
+    """
     if not windows:
         return True
     hour = datetime.now().hour
-    return any(start <= hour < end for start, end in windows)
+    for start, end in windows:
+        if start <= end:
+            if start <= hour < end:
+                return True
+        else:
+            # Cross-midnight: e.g., (22, 2) means 22-23 and 0-1
+            if hour >= start or hour < end:
+                return True
+    return False
 
 
 def _next_window_start(windows: list[tuple[int, int]]) -> datetime:
     """Compute the next datetime when a configured window opens.
 
     Checks remaining windows today first, then wraps to tomorrow's first window.
+    Uses the start hour of each window (handles cross-midnight windows).
     """
     now = datetime.now()
     today = now.date()
 
     # Check if any window opens later today
-    for start, _end in sorted(windows):
+    for start, _end in sorted(windows, key=lambda w: w[0]):
         candidate = datetime.combine(today, datetime.min.time().replace(hour=start))
         if candidate > now:
             return candidate
 
-    # No window opens later today — use first window tomorrow
+    # No window opens later today — use earliest start hour tomorrow
     first_start = min(start for start, _end in windows)
     tomorrow = today + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.min.time().replace(hour=first_start))

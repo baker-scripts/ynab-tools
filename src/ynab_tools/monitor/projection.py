@@ -33,7 +33,7 @@ def project_minimum_balance(
     unscheduled_cc_total = sum(p.amount for cc_id, p in cc_payments.items() if cc_id not in covered_cc_ids)
     if unscheduled_cc_total > 0:
         logger.info(f"Unscheduled CC payments (applied today): ${unscheduled_cc_total:,.2f}")
-    else:
+    elif cc_payments:
         logger.info("All CC payments are scheduled.")
 
     # Build day-by-day projection

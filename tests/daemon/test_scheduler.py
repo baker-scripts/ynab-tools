@@ -5,6 +5,19 @@ from __future__ import annotations
 import heapq
 from datetime import datetime
 
+
+def _fixed_datetime(hour: int, minute: int = 0):
+    """Return a datetime class substitute that pins now() to a fixed hour."""
+
+    class _FakeDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            base = datetime(2026, 3, 22, hour, minute, 0)
+            return base
+
+    return _FakeDatetime
+
+
 from ynab_tools.daemon.scheduler import (
     DaemonConfig,
     Feature,
@@ -56,17 +69,29 @@ class TestInWindow:
     def test_empty_windows_always_true(self):
         assert _in_window([]) is True
 
-    def test_in_window(self):
-        hour = datetime.now().hour
-        assert _in_window([(hour, hour + 1)]) is True
+    def test_in_window(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
+        assert _in_window([(10, 12)]) is True
 
-    def test_outside_window(self):
-        hour = datetime.now().hour
-        # Use a window that doesn't contain the current hour
-        start = (hour + 2) % 24
-        end = (hour + 3) % 24
-        if start < end:
-            assert _in_window([(start, end)]) is False
+    def test_outside_window(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(14))
+        assert _in_window([(10, 12)]) is False
+
+    def test_cross_midnight_inside_before_midnight(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(23))
+        assert _in_window([(22, 2)]) is True
+
+    def test_cross_midnight_inside_after_midnight(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(1))
+        assert _in_window([(22, 2)]) is True
+
+    def test_cross_midnight_outside(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(15))
+        assert _in_window([(22, 2)]) is False
+
+    def test_cross_midnight_at_end_hour_excluded(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(2))
+        assert _in_window([(22, 2)]) is False
 
 
 class TestScheduleEntry:
@@ -131,63 +156,65 @@ class TestBuildQueue:
 
 
 class TestNextWindowStart:
-    def test_next_window_today(self):
-        now = datetime.now()
-        # Window 2 hours from now
-        future_hour = (now.hour + 2) % 24
-        if future_hour > now.hour:  # only test if doesn't wrap past midnight
-            result = _next_window_start([(future_hour, future_hour + 1)])
-            assert result.hour == future_hour
-            assert result.date() == now.date()
+    def test_next_window_today(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
+        result = _next_window_start([(14, 16)])
+        assert result.hour == 14
+        assert result.date() == datetime(2026, 3, 22).date()
 
-    def test_next_window_tomorrow(self):
-        now = datetime.now()
-        # Window 1 hour ago (already passed today)
-        past_hour = (now.hour - 1) % 24
-        if past_hour < now.hour:  # only test if doesn't wrap
-            result = _next_window_start([(past_hour, past_hour + 1)])
-            assert result.hour == past_hour
-            assert result.date() > now.date()
+    def test_next_window_tomorrow(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
+        result = _next_window_start([(8, 9)])
+        assert result.hour == 8
+        assert result.date() == datetime(2026, 3, 23).date()
 
-    def test_picks_earliest_future_window(self):
-        now = datetime.now()
-        h1 = (now.hour + 2) % 24
-        h2 = (now.hour + 5) % 24
-        if h1 > now.hour and h2 > h1:
-            result = _next_window_start([(h2, h2 + 1), (h1, h1 + 1)])
-            assert result.hour == h1
+    def test_picks_earliest_future_window(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
+        result = _next_window_start([(18, 20), (14, 16)])
+        assert result.hour == 14
+
+    def test_cross_midnight_window_next_start(self, monkeypatch):
+        # At 15:00, next opening for window 22-2 should be 22:00 today
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(15))
+        result = _next_window_start([(22, 2)])
+        assert result.hour == 22
+        assert result.date() == datetime(2026, 3, 22).date()
+
+    def test_cross_midnight_inside_no_false_next(self, monkeypatch):
+        # At 23:00, inside window 22-2 — _next_window_start shouldn't be
+        # called in this case, but if it is, it returns tomorrow's 22:00
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(23))
+        result = _next_window_start([(22, 2)])
+        assert result.hour == 22
+        assert result.date() == datetime(2026, 3, 23).date()
 
 
 class TestExecuteEntry:
     def test_monitor_returns_none(self, monkeypatch):
         monkeypatch.setattr("ynab_tools.daemon.scheduler._run_monitor", lambda: None)
-        entry = ScheduleEntry(datetime.now(), Feature.MONITOR, 3600)
+        entry = ScheduleEntry(datetime(2026, 3, 22, 10), Feature.MONITOR, 3600)
         config = DaemonConfig(monitor_interval_seconds=3600)
         assert _execute_entry(entry, config) is None
 
     def test_amazon_outside_window_returns_next_open(self, monkeypatch):
-        now = datetime.now()
-        # Use a window that's NOT the current hour
-        future_hour = (now.hour + 3) % 24
-        if future_hour <= now.hour:
-            return  # skip if wraps (edge case)
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
         config = DaemonConfig(
             amazon_interval_seconds=86400,
-            amazon_windows=[(future_hour, future_hour + 1)],
+            amazon_windows=[(14, 16)],
         )
-        entry = ScheduleEntry(now, Feature.AMAZON, 86400)
+        entry = ScheduleEntry(datetime(2026, 3, 22, 10), Feature.AMAZON, 86400)
         result = _execute_entry(entry, config)
         assert result is not None
-        assert result.hour == future_hour
+        assert result.hour == 14
 
     def test_amazon_inside_window_returns_none(self, monkeypatch):
         monkeypatch.setattr("ynab_tools.daemon.scheduler._run_amazon", lambda: None)
-        now = datetime.now()
+        monkeypatch.setattr("ynab_tools.daemon.scheduler.datetime", _fixed_datetime(10))
         config = DaemonConfig(
             amazon_interval_seconds=86400,
-            amazon_windows=[(now.hour, now.hour + 1)],
+            amazon_windows=[(10, 12)],
         )
-        entry = ScheduleEntry(now, Feature.AMAZON, 86400)
+        entry = ScheduleEntry(datetime(2026, 3, 22, 10), Feature.AMAZON, 86400)
         assert _execute_entry(entry, config) is None
 
 
