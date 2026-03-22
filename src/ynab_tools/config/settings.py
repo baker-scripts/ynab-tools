@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     min_balance: int = 0
     ynab_target_buffer_days: int = 10
     ynab_alert_buffer_days: int = 5
-    cache_dir: str = "/tmp/ynab-tools"
+    cache_dir: str = "~/.cache/ynab-tools"
     dry_run: bool = False
 
     # === CC Payment Tracking ===

@@ -14,8 +14,9 @@ from loguru import logger
 
 def cache_path(cache_dir: str, name: str) -> str:
     """Return a cache file path, ensuring the directory exists."""
-    os.makedirs(cache_dir, mode=0o700, exist_ok=True)
-    return os.path.join(cache_dir, name)
+    resolved = os.path.expanduser(cache_dir)
+    os.makedirs(resolved, mode=0o700, exist_ok=True)
+    return os.path.join(resolved, name)
 
 
 def read_cache(filepath: str, ttl_seconds: int) -> dict[str, Any] | None:
