@@ -37,6 +37,8 @@ class MonitorResult:
     target_threshold: float
     avg_daily: float
     avg_monthly: float
+    alert_buffer_days: int
+    target_buffer_days: int
     transactions: list[TransactionOccurrence]
     cc_payments: dict[str, CreditCardPayment]
     covered_cc_ids: set[str] = field(default_factory=set)
@@ -148,6 +150,8 @@ def run_check(
         target_threshold=target_threshold,
         avg_daily=avg_daily,
         avg_monthly=avg_monthly,
+        alert_buffer_days=alert_buffer_days,
+        target_buffer_days=target_buffer_days,
         transactions=transactions,
         cc_payments=cc_payments,
         covered_cc_ids=covered_cc_ids,

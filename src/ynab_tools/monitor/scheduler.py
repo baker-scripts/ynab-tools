@@ -127,10 +127,9 @@ def expand_scheduled_transactions(
         next_date = date.fromisoformat(date_str)
         frequency = txn.get("frequency", "never")
 
-        raw_amount = milliunits_to_dollars(txn["amount"])
-        amount = -raw_amount if xfer_to_checking and not on_checking else raw_amount
+        amount = milliunits_to_dollars(txn["amount"])
         payee = txn.get("payee_name") or "Unknown"
-        transfer_account_id = xfer_id if on_checking else acct_id
+        transfer_account_id = xfer_id
 
         for occ_date in _expand_occurrences(next_date, frequency, today, end_date):
             freq_label = f" ({frequency})" if frequency != "never" else ""

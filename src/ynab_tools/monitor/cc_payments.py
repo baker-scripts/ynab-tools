@@ -270,7 +270,7 @@ def update_cc_payment_amount(
             logger.info(f"Updating {cc_name}: ${old_dollars:,.2f} -> ${payment_amount:,.2f}")
             today = datetime.now().date()
             week_ago = today - timedelta(days=7)
-            existing_date_str = existing.get("date_next") or existing.get("date_first", "")
+            existing_date_str = existing.get("date_next") or existing.get("date_first")
             existing_date = date.fromisoformat(existing_date_str) if existing_date_str else None
             valid_date = existing_date if existing_date and existing_date >= week_ago else today
 
