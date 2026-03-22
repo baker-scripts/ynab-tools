@@ -114,15 +114,15 @@ class TestExpandScheduledTransactions:
         assert result[0].amount == -50.0
         assert result[0].payee == "Rent"
 
-    def test_transfer_to_checking(self):
+    def test_cc_side_only_transfer_skipped(self):
+        """CC-side of transfer is skipped (checking side handles it)."""
         txn = self._make_txn(
             account_id="cc-account",
             transfer_account_id="checking",
             amount=50000,  # positive from CC perspective
         )
         result = expand_scheduled_transactions([txn], ["checking"], date(2026, 3, 1), date(2026, 3, 31))
-        assert len(result) == 1
-        assert result[0].amount == -50.0  # flipped sign
+        assert len(result) == 0
 
     def test_unrelated_account_excluded(self):
         txn = self._make_txn(account_id="savings")
@@ -142,3 +142,53 @@ class TestExpandScheduledTransactions:
         result = expand_scheduled_transactions(txns, ["checking"], date(2026, 3, 1), date(2026, 3, 31))
         assert result[0].payee == "A"
         assert result[1].payee == "B"
+
+    def test_both_sides_of_transfer_not_double_counted(self):
+        """YNAB returns both sides of a transfer; only one should be counted."""
+        checking_side = self._make_txn(
+            id="st-checking",
+            account_id="checking",
+            transfer_account_id="cc-account",
+            amount=-50000,
+            payee_name="Transfer : CC",
+        )
+        cc_side = self._make_txn(
+            id="st-cc",
+            account_id="cc-account",
+            transfer_account_id="checking",
+            amount=50000,
+            payee_name="Transfer : Checking",
+        )
+        result = expand_scheduled_transactions(
+            [checking_side, cc_side],
+            ["checking"],
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+        )
+        assert len(result) == 1
+        assert result[0].amount == -50.0
+
+    def test_inbound_transfer_both_sides_not_double_counted(self):
+        """Transfer TO checking from external — only count checking side."""
+        external_side = self._make_txn(
+            id="st-ext",
+            account_id="external",
+            transfer_account_id="checking",
+            amount=-200000,
+            payee_name="Transfer : Checking",
+        )
+        checking_side = self._make_txn(
+            id="st-checking",
+            account_id="checking",
+            transfer_account_id="external",
+            amount=200000,
+            payee_name="Transfer : External",
+        )
+        result = expand_scheduled_transactions(
+            [external_side, checking_side],
+            ["checking"],
+            date(2026, 3, 1),
+            date(2026, 3, 31),
+        )
+        assert len(result) == 1
+        assert result[0].amount == 200.0

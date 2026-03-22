@@ -116,6 +116,11 @@ def expand_scheduled_transactions(
         if not on_checking and not xfer_to_checking:
             continue
 
+        # YNAB returns both sides of a transfer (checking→CC and CC→checking).
+        # Only process from the monitored account's side to avoid double-counting.
+        if xfer_to_checking and not on_checking:
+            continue
+
         date_str = txn.get("date_next") or txn.get("date_first", "")
         if not date_str:
             continue
