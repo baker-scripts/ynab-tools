@@ -98,6 +98,26 @@ def _in_window(windows: list[tuple[int, int]]) -> bool:
     return any(start <= hour < end for start, end in windows)
 
 
+def _next_window_start(windows: list[tuple[int, int]]) -> datetime:
+    """Compute the next datetime when a configured window opens.
+
+    Checks remaining windows today first, then wraps to tomorrow's first window.
+    """
+    now = datetime.now()
+    today = now.date()
+
+    # Check if any window opens later today
+    for start, _end in sorted(windows):
+        candidate = datetime.combine(today, datetime.min.time().replace(hour=start))
+        if candidate > now:
+            return candidate
+
+    # No window opens later today — use first window tomorrow
+    first_start = min(start for start, _end in windows)
+    tomorrow = today + timedelta(days=1)
+    return datetime.combine(tomorrow, datetime.min.time().replace(hour=first_start))
+
+
 def _build_config(
     monitor_schedule: str,
     amazon_interval: float,
@@ -175,9 +195,13 @@ def _build_queue(config: DaemonConfig) -> list[ScheduleEntry]:
         logger.info(f"Monitor scheduled every {config.monitor_interval_seconds / 3600:.1f}h")
 
     if not config.monitor_only:
+        amazon_start = now
+        if config.amazon_windows and not _in_window(config.amazon_windows):
+            amazon_start = _next_window_start(config.amazon_windows)
+            logger.info(f"Amazon first run aligned to window at {amazon_start.strftime('%Y-%m-%d %H:%M')}")
         heapq.heappush(
             queue,
-            ScheduleEntry(now, Feature.AMAZON, config.amazon_interval_seconds),
+            ScheduleEntry(amazon_start, Feature.AMAZON, config.amazon_interval_seconds),
         )
         logger.info(f"Amazon sync scheduled every {config.amazon_interval_seconds / 3600:.1f}h")
         if config.amazon_windows:
@@ -195,15 +219,25 @@ def _wait_until(target: datetime) -> None:
         time.sleep(min(remaining, 5))
 
 
-def _execute_entry(entry: ScheduleEntry, config: DaemonConfig) -> None:
-    """Execute a single schedule entry."""
+def _execute_entry(entry: ScheduleEntry, config: DaemonConfig) -> datetime | None:
+    """Execute a single schedule entry.
+
+    Returns an override for the next run time, or None to use the default interval.
+    """
     if entry.feature == Feature.MONITOR:
         _run_monitor()
+        return None
     elif entry.feature == Feature.AMAZON:
         if _in_window(config.amazon_windows):
             _run_amazon()
+            return None
         else:
-            logger.info("Amazon sync skipped — outside configured time windows")
+            next_open = _next_window_start(config.amazon_windows)
+            logger.info(
+                f"Amazon sync skipped — outside windows, next attempt at {next_open.strftime('%Y-%m-%d %H:%M')}"
+            )
+            return next_open
+    return None
 
 
 def run_daemon(
@@ -240,10 +274,10 @@ def run_daemon(
         if _shutdown:
             break
 
-        _execute_entry(entry, config)
+        next_run_override = _execute_entry(entry, config)
 
-        # Re-schedule
-        next_run = datetime.now() + timedelta(seconds=entry.interval_seconds)
+        # Re-schedule: use override if provided, otherwise default interval
+        next_run = next_run_override or (datetime.now() + timedelta(seconds=entry.interval_seconds))
         heapq.heappush(queue, ScheduleEntry(next_run, entry.feature, entry.interval_seconds))
 
     logger.info("Daemon shutdown complete.")

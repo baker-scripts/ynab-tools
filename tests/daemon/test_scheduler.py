@@ -10,7 +10,9 @@ from ynab_tools.daemon.scheduler import (
     Feature,
     ScheduleEntry,
     _build_queue,
+    _execute_entry,
     _in_window,
+    _next_window_start,
     _parse_schedule,
     _parse_windows,
 )
@@ -126,6 +128,67 @@ class TestBuildQueue:
         )
         queue = _build_queue(config)
         assert len(queue) == 0
+
+
+class TestNextWindowStart:
+    def test_next_window_today(self):
+        now = datetime.now()
+        # Window 2 hours from now
+        future_hour = (now.hour + 2) % 24
+        if future_hour > now.hour:  # only test if doesn't wrap past midnight
+            result = _next_window_start([(future_hour, future_hour + 1)])
+            assert result.hour == future_hour
+            assert result.date() == now.date()
+
+    def test_next_window_tomorrow(self):
+        now = datetime.now()
+        # Window 1 hour ago (already passed today)
+        past_hour = (now.hour - 1) % 24
+        if past_hour < now.hour:  # only test if doesn't wrap
+            result = _next_window_start([(past_hour, past_hour + 1)])
+            assert result.hour == past_hour
+            assert result.date() > now.date()
+
+    def test_picks_earliest_future_window(self):
+        now = datetime.now()
+        h1 = (now.hour + 2) % 24
+        h2 = (now.hour + 5) % 24
+        if h1 > now.hour and h2 > h1:
+            result = _next_window_start([(h2, h2 + 1), (h1, h1 + 1)])
+            assert result.hour == h1
+
+
+class TestExecuteEntry:
+    def test_monitor_returns_none(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler._run_monitor", lambda: None)
+        entry = ScheduleEntry(datetime.now(), Feature.MONITOR, 3600)
+        config = DaemonConfig(monitor_interval_seconds=3600)
+        assert _execute_entry(entry, config) is None
+
+    def test_amazon_outside_window_returns_next_open(self, monkeypatch):
+        now = datetime.now()
+        # Use a window that's NOT the current hour
+        future_hour = (now.hour + 3) % 24
+        if future_hour <= now.hour:
+            return  # skip if wraps (edge case)
+        config = DaemonConfig(
+            amazon_interval_seconds=86400,
+            amazon_windows=[(future_hour, future_hour + 1)],
+        )
+        entry = ScheduleEntry(now, Feature.AMAZON, 86400)
+        result = _execute_entry(entry, config)
+        assert result is not None
+        assert result.hour == future_hour
+
+    def test_amazon_inside_window_returns_none(self, monkeypatch):
+        monkeypatch.setattr("ynab_tools.daemon.scheduler._run_amazon", lambda: None)
+        now = datetime.now()
+        config = DaemonConfig(
+            amazon_interval_seconds=86400,
+            amazon_windows=[(now.hour, now.hour + 1)],
+        )
+        entry = ScheduleEntry(now, Feature.AMAZON, 86400)
+        assert _execute_entry(entry, config) is None
 
 
 class TestFeatureEnum:
