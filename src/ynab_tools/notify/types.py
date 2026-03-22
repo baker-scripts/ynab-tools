@@ -70,10 +70,16 @@ def build_notification_context(
     transfer_to_target = max(0.0, target_threshold - min_balance)
     buffer_days = min_balance / avg_daily_expenses if avg_daily_expenses > 0 else 0.0
 
-    # Top 5 largest outflows in next 7 days
+    # Top 5 largest outflows in next 7 days (exclude CC payment transfers
+    # that are already shown in the CC Payments section)
+    covered = covered_cc_ids or set()
     week_out = today + timedelta(days=7)
     upcoming = sorted(
-        [t for t in transactions if today <= t.date <= week_out and t.amount < 0],
+        [
+            t
+            for t in transactions
+            if today <= t.date <= week_out and t.amount < 0 and t.transfer_account_id not in covered
+        ],
         key=lambda t: t.amount,
     )[:5]
 
@@ -89,7 +95,6 @@ def build_notification_context(
     ]
 
     # Tag CC payments as scheduled/unscheduled
-    covered = covered_cc_ids or set()
     tagged_cc = {
         cc_id: payment.model_copy(update={"scheduled": cc_id in covered}) for cc_id, payment in cc_payments.items()
     }

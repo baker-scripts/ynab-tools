@@ -144,6 +144,59 @@ class TestBuildNotificationContext:
         assert side.amount == 500.0
         assert side.count == 1
 
+    def test_cc_transfer_excluded_from_upcoming_outflows(self):
+        """CC payment transfers already shown in CC Payments should not also appear in Upcoming Bills."""
+        cc_id = "chase-cc-id"
+        txns = [
+            _make_txn(date=date(2026, 3, 3), amount=-500.0, payee="Transfer : Chase", transfer_account_id=cc_id),
+            _make_txn(date=date(2026, 3, 5), amount=-200.0, payee="Electric Bill", transfer_account_id=None),
+        ]
+        cc = {cc_id: CreditCardPayment(name="Chase", amount=500.0, source="statement")}
+        ctx = build_notification_context(
+            current_balance=5000.0,
+            accounts=[],
+            min_balance=1000.0,
+            min_date=date(2026, 3, 15),
+            end_date=date(2026, 3, 31),
+            alert_threshold=500.0,
+            target_threshold=1000.0,
+            alert_buffer_days=5,
+            target_buffer_days=10,
+            avg_daily_expenses=100.0,
+            transactions=txns,
+            cc_payments=cc,
+            covered_cc_ids={cc_id},
+            today=date(2026, 3, 1),
+        )
+        assert len(ctx.upcoming_outflows) == 1
+        assert ctx.upcoming_outflows[0].payee == "Electric Bill"
+        assert ctx.cc_payments[cc_id].scheduled is True
+
+    def test_uncovered_cc_transfer_still_in_upcoming(self):
+        """Transfers to CCs without scheduled payments should still appear in upcoming."""
+        cc_id = "amex-cc-id"
+        txns = [
+            _make_txn(date=date(2026, 3, 3), amount=-300.0, payee="Transfer : Amex", transfer_account_id=cc_id),
+        ]
+        ctx = build_notification_context(
+            current_balance=5000.0,
+            accounts=[],
+            min_balance=1000.0,
+            min_date=date(2026, 3, 15),
+            end_date=date(2026, 3, 31),
+            alert_threshold=500.0,
+            target_threshold=1000.0,
+            alert_buffer_days=5,
+            target_buffer_days=10,
+            avg_daily_expenses=100.0,
+            transactions=txns,
+            cc_payments={},
+            covered_cc_ids=set(),
+            today=date(2026, 3, 1),
+        )
+        assert len(ctx.upcoming_outflows) == 1
+        assert ctx.upcoming_outflows[0].payee == "Transfer : Amex"
+
     def test_cc_payments_tagged(self):
         cc = {
             "cc1": CreditCardPayment(name="Chase", amount=500.0, source="statement"),
