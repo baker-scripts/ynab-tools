@@ -37,52 +37,37 @@ def extract_order_url(memo: str) -> str | None:
 def truncate_memo(memo: str) -> str:
     """Truncate a memo to fit within YNAB's character limit.
 
-    Preserves the URL and partial-order warning while truncating item lines.
+    Preserves the URL and partial-order warning while truncating item text.
+    Handles both comma-separated (build_memo output) and numbered list formats.
     """
     if len(memo) <= YNAB_MEMO_LIMIT:
         return memo
 
-    url_line = extract_order_url(memo)
+    url = extract_order_url(memo)
 
-    # Strip markdown formatting for space calculation
+    # Strip markdown formatting
     clean = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", memo)
     clean = re.sub(r"\*\*([^*]+)\*\*", r"\1", clean)
 
     lines = [line.strip() for line in clean.replace("\r\n", "\n").split("\n") if line.strip()]
 
-    multi_order = next((ln for ln in lines if ln.startswith("-This transaction")), None)
-    items_header = next((ln for ln in lines if ln == "Items"), None)
-    item_lines = [ln for ln in lines if ln and ln[0].isdigit() and ". " in ln]
+    # Extract structural parts
+    warning = next((ln for ln in lines if ln.startswith("-This transaction")), None)
 
-    # Calculate space for items
-    required = [x for x in [multi_order, items_header, url_line] if x]
-    required_space = sum(len(x) + 1 for x in required)
-    available = YNAB_MEMO_LIMIT - required_space
+    # Everything that isn't the warning or URL is item content
+    item_lines = [ln for ln in lines if ln != warning and (not url or url not in ln)]
 
-    # Truncate items to fit
-    truncated: list[str] = []
-    current_len = 0
-    for item in item_lines:
-        item_len = len(item) + 1
-        if current_len + item_len <= available:
-            truncated.append(item)
-            current_len += item_len
-        else:
-            if available - current_len >= 4:
-                truncated.append("...")
-            break
+    # Calculate available space for item content
+    suffix = f"\n{url}" if url else ""
+    prefix = f"{warning}\n" if warning else ""
+    available = YNAB_MEMO_LIMIT - len(prefix) - len(suffix) - len("...")
 
-    # Build final memo
-    final: list[str] = []
-    if multi_order:
-        final.append(multi_order)
-    if items_header and truncated:
-        final.append(items_header)
-    final.extend(truncated)
-    if url_line:
-        final.append(url_line)
+    # Join item content and truncate
+    items_text = "\n".join(item_lines)
+    if len(items_text) > available:
+        items_text = items_text[:available] + "..."
 
-    return "\n".join(final)
+    return f"{prefix}{items_text}{suffix}"
 
 
 def generate_ai_summary(
