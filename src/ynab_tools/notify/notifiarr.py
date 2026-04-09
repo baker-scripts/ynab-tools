@@ -152,6 +152,56 @@ def build_alert_payload(ctx: NotificationContext, channel_id: int) -> dict:
     }
 
 
+def build_amazon_sync_payload(
+    matched: int,
+    updated: int,
+    skipped: int,
+    errors: tuple[str, ...],
+    ynab_count: int,
+    amazon_count: int,
+    channel_id: int,
+) -> dict:
+    """Build a Notifiarr passthrough payload for an Amazon sync result."""
+    has_errors = len(errors) > 0
+
+    if has_errors:
+        color, status = "E74C3C", "Errors"
+    elif updated > 0:
+        color, status = "2ECC71", "Updated"
+    else:
+        color, status = "3498DB", "No Changes"
+
+    description = (
+        f"Matched **{matched}** of **{ynab_count}** YNAB transactions against **{amazon_count}** Amazon orders."
+    )
+
+    fields = [
+        {"title": "Matched", "text": str(matched), "inline": True},
+        {"title": "Updated", "text": str(updated), "inline": True},
+        {"title": "Skipped", "text": str(skipped), "inline": True},
+    ]
+
+    if errors:
+        error_text = "\n".join(errors[:5])
+        if len(errors) > 5:
+            error_text += f"\n...and {len(errors) - 5} more"
+        fields.append({"title": "Errors", "text": error_text, "inline": False})
+
+    return {
+        "notification": {"update": True, "name": APP_NAME, "event": "ynab-amazon-sync"},
+        "discord": {
+            "color": color,
+            "text": {
+                "title": f"Amazon Sync \u2014 {status}",
+                "description": description,
+                "fields": fields,
+                "footer": f"{APP_NAME} v{__version__}",
+            },
+            "ids": {"channel": channel_id},
+        },
+    }
+
+
 def build_update_payload(ctx: NotificationContext, channel_id: int) -> dict:
     """Build a Notifiarr passthrough payload for a routine balance update."""
     min_bal = ctx.min_balance

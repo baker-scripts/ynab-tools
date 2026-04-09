@@ -46,3 +46,34 @@ def amazon(
     if result.errors:
         for err in result.errors:
             logger.error(err)
+
+    _send_notification(result, s, dry_run=dry_run)
+
+
+def _send_notification(result: object, s: object, *, dry_run: bool) -> None:
+    """Send Amazon sync notification via Notifiarr."""
+    from ynab_tools.amazon.runner import SyncResult
+
+    r: SyncResult = result  # type: ignore[assignment]
+
+    notifiarr_key = getattr(s, "notifiarr_api_key", None)
+    channel_id = getattr(s, "notifiarr_channel_id", "")
+    if not (notifiarr_key and notifiarr_key.get_secret_value() and channel_id):
+        return
+
+    from ynab_tools.notify.notifiarr import build_amazon_sync_payload, send_notifiarr
+
+    payload = build_amazon_sync_payload(
+        matched=r.matched,
+        updated=r.updated,
+        skipped=r.skipped,
+        errors=r.errors,
+        ynab_count=r.ynab_count,
+        amazon_count=r.amazon_count,
+        channel_id=int(channel_id),
+    )
+
+    if dry_run:
+        logger.info("[DRY-RUN] Would send Notifiarr Amazon sync notification")
+    else:
+        send_notifiarr(payload, notifiarr_key.get_secret_value())
