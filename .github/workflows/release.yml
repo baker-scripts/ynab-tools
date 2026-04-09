@@ -57,8 +57,39 @@ jobs:
     needs: docker
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git tag --sort=-v:refname | grep -A1 "^${TAG}$" | tail -1)
+          {
+            echo 'body<<EOF'
+            echo "## Docker Images"
+            echo ""
+            echo '```bash'
+            echo "docker pull ghcr.io/baker-scripts/ynab-tools:${TAG#v}"
+            echo "docker pull ghcr.io/baker-scripts/ynab-tools-monitor:${TAG#v}"
+            echo '```'
+            echo ""
+            echo "## Changes"
+            echo ""
+            if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG" ]; then
+              git log --format="- %s (%h)" "${PREV_TAG}..${TAG}"
+            else
+              git log --format="- %s (%h)" -10 "${TAG}"
+            fi
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "${{ steps.notes.outputs.body }}"
