@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import date
 
 from ynab_tools.core.models import CreditCardPayment, TransactionOccurrence
-from ynab_tools.notify.apprise import _build_alert_message, _build_update_message
+from ynab_tools.notify.apprise import (
+    _build_alert_message,
+    _build_amazon_sync_message,
+    _build_update_message,
+)
 from ynab_tools.notify.types import InflowSummary, NotificationContext
 
 
@@ -29,6 +33,61 @@ def _make_ctx(**overrides):
         "cc_payments": {},
     }
     return NotificationContext(**{**defaults, **overrides})
+
+
+class TestBuildAmazonSyncMessage:
+    def test_updated_status(self):
+        title, body = _build_amazon_sync_message(
+            matched=3,
+            updated=2,
+            skipped=1,
+            errors=(),
+            ynab_count=5,
+            amazon_count=20,
+        )
+        assert "Updated" in title
+        assert "3" in body
+        assert "2" in body
+        assert "5" in body
+        assert "20" in body
+
+    def test_no_changes_status(self):
+        title, _body = _build_amazon_sync_message(
+            matched=0,
+            updated=0,
+            skipped=0,
+            errors=(),
+            ynab_count=5,
+            amazon_count=20,
+        )
+        assert "No Changes" in title
+
+    def test_errors_status(self):
+        title, body = _build_amazon_sync_message(
+            matched=1,
+            updated=0,
+            skipped=1,
+            errors=("err1", "err2"),
+            ynab_count=2,
+            amazon_count=10,
+        )
+        assert "Errors" in title
+        assert "err1" in body
+        assert "err2" in body
+
+    def test_error_truncation(self):
+        errors = tuple(f"error {i}" for i in range(8))
+        _title, body = _build_amazon_sync_message(
+            matched=0,
+            updated=0,
+            skipped=0,
+            errors=errors,
+            ynab_count=0,
+            amazon_count=0,
+        )
+        assert "error 4" in body
+        assert "error 5" not in body
+        assert "3 more" in body
 
 
 class TestBuildAlertMessage:

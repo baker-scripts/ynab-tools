@@ -47,33 +47,39 @@ def amazon(
         for err in result.errors:
             logger.error(err)
 
-    _send_notification(result, s, dry_run=dry_run)
+    _send_notifications(result, s, dry_run=dry_run)
 
 
-def _send_notification(result: object, s: object, *, dry_run: bool) -> None:
-    """Send Amazon sync notification via Notifiarr."""
+def _send_notifications(result: object, s: object, *, dry_run: bool) -> None:
+    """Send Amazon sync notifications via all configured channels."""
     from ynab_tools.amazon.runner import SyncResult
 
     r: SyncResult = result  # type: ignore[assignment]
+    sync_kwargs = {
+        "matched": r.matched,
+        "updated": r.updated,
+        "skipped": r.skipped,
+        "errors": r.errors,
+        "ynab_count": r.ynab_count,
+        "amazon_count": r.amazon_count,
+    }
 
     notifiarr_key = getattr(s, "notifiarr_api_key", None)
     channel_id = getattr(s, "notifiarr_channel_id", "")
-    if not (notifiarr_key and notifiarr_key.get_secret_value() and channel_id):
-        return
+    if notifiarr_key and notifiarr_key.get_secret_value() and channel_id:
+        from ynab_tools.notify.notifiarr import build_amazon_sync_payload, send_notifiarr
 
-    from ynab_tools.notify.notifiarr import build_amazon_sync_payload, send_notifiarr
+        payload = build_amazon_sync_payload(**sync_kwargs, channel_id=int(channel_id))
+        if dry_run:
+            logger.info("[DRY-RUN] Would send Notifiarr Amazon sync notification")
+        else:
+            send_notifiarr(payload, notifiarr_key.get_secret_value())
 
-    payload = build_amazon_sync_payload(
-        matched=r.matched,
-        updated=r.updated,
-        skipped=r.skipped,
-        errors=r.errors,
-        ynab_count=r.ynab_count,
-        amazon_count=r.amazon_count,
-        channel_id=int(channel_id),
-    )
+    apprise_urls = getattr(s, "apprise_urls", None)
+    if apprise_urls and apprise_urls.get_secret_value():
+        from ynab_tools.notify.apprise import send_amazon_sync
 
-    if dry_run:
-        logger.info("[DRY-RUN] Would send Notifiarr Amazon sync notification")
-    else:
-        send_notifiarr(payload, notifiarr_key.get_secret_value())
+        if dry_run:
+            logger.info("[DRY-RUN] Would send Apprise Amazon sync notification")
+        else:
+            send_amazon_sync(**sync_kwargs, apprise_urls=apprise_urls.get_secret_value())

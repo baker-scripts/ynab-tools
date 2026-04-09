@@ -26,6 +26,43 @@ def _fmt(amount: float) -> str:
     return f"${amount:,.0f}"
 
 
+def _build_amazon_sync_message(
+    matched: int,
+    updated: int,
+    skipped: int,
+    errors: tuple[str, ...],
+    ynab_count: int,
+    amazon_count: int,
+) -> tuple[str, str]:
+    """Build title and body for an Amazon sync notification."""
+    if errors:
+        status = "Errors"
+    elif updated > 0:
+        status = "Updated"
+    else:
+        status = "No Changes"
+
+    title = f"{APP_NAME}: Amazon Sync — {status}"
+
+    lines = [
+        f"Matched {matched} of {ynab_count} YNAB transactions against {amazon_count} Amazon orders.",
+        "",
+        f"Matched: {matched}",
+        f"Updated: {updated}",
+        f"Skipped: {skipped}",
+    ]
+
+    if errors:
+        lines.append("")
+        lines.append("Errors:")
+        for err in errors[:5]:
+            lines.append(f"  {err}")
+        if len(errors) > 5:
+            lines.append(f"  ...and {len(errors) - 5} more")
+
+    return title, "\n".join(lines)
+
+
 def _build_alert_message(ctx: NotificationContext) -> tuple[str, str]:
     """Build title and body for an alert notification."""
     transfer = ctx.transfer_to_target
@@ -142,6 +179,38 @@ def send_alert(ctx: NotificationContext, apprise_urls: str) -> bool:
         logger.info("Alert notification sent via Apprise")
     else:
         logger.error("Failed to send alert via Apprise")
+    return bool(result)
+
+
+def send_amazon_sync(
+    matched: int,
+    updated: int,
+    skipped: int,
+    errors: tuple[str, ...],
+    ynab_count: int,
+    amazon_count: int,
+    apprise_urls: str,
+) -> bool:
+    """Send an Amazon sync summary via Apprise.
+
+    Returns True on success, False on failure.
+    """
+    title, body = _build_amazon_sync_message(
+        matched=matched,
+        updated=updated,
+        skipped=skipped,
+        errors=errors,
+        ynab_count=ynab_count,
+        amazon_count=amazon_count,
+    )
+    notifier = _build_notifier(apprise_urls)
+    notify_type = apprise.NotifyType.FAILURE if errors else apprise.NotifyType.SUCCESS
+
+    result = notifier.notify(title=title, body=body, notify_type=notify_type)
+    if result:
+        logger.info("Amazon sync notification sent via Apprise")
+    else:
+        logger.error("Failed to send Amazon sync notification via Apprise")
     return bool(result)
 
 
