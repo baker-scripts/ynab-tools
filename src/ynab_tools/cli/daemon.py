@@ -20,6 +20,10 @@ def daemon(
         str,
         Option("--amazon-windows", help="Time windows for Amazon sync, e.g. '6-8,18-20'"),
     ] = "",
+    monitor_windows: Annotated[
+        str,
+        Option("--monitor-windows", help="Time windows for monitor, e.g. '6-7,15-16,20-21'"),
+    ] = "",
     monitor_only: Annotated[
         bool,
         Option("--monitor-only", help="Only run the balance monitor"),
@@ -36,6 +40,7 @@ def daemon(
         monitor_schedule=monitor_schedule,
         amazon_interval=amazon_interval,
         amazon_windows=amazon_windows,
+        monitor_windows=monitor_windows,
         monitor_only=monitor_only,
         amazon_only=amazon_only,
     )

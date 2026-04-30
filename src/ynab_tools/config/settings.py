@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     # === Scheduling ===
     schedule: str = ""
     update_schedule: str = ""
+    monitor_windows: str = ""
 
     # === Amazon Settings ===
     amazon_user: str = ""

@@ -41,6 +41,7 @@ class DaemonConfig:
 
     monitor_interval_seconds: float = 0
     amazon_interval_seconds: float = 0
+    monitor_windows: list[tuple[int, int]] = field(default_factory=list)
     amazon_windows: list[tuple[int, int]] = field(default_factory=list)
     monitor_only: bool = False
     amazon_only: bool = False
@@ -134,6 +135,7 @@ def _build_config(
     monitor_schedule: str,
     amazon_interval: float,
     amazon_windows: str,
+    monitor_windows: str,
     monitor_only: bool,
     amazon_only: bool,
 ) -> DaemonConfig:
@@ -158,6 +160,7 @@ def _build_config(
         config.amazon_interval_seconds = 24 * 3600
 
     config.amazon_windows = _parse_windows(amazon_windows)
+    config.monitor_windows = _parse_windows(monitor_windows or s.monitor_windows)
 
     return config
 
@@ -200,11 +203,17 @@ def _build_queue(config: DaemonConfig) -> list[ScheduleEntry]:
     now = datetime.now()
 
     if not config.amazon_only:
+        monitor_start = now
+        if config.monitor_windows and not _in_window(config.monitor_windows):
+            monitor_start = _next_window_start(config.monitor_windows)
+            logger.info(f"Monitor first run aligned to window at {monitor_start.strftime('%Y-%m-%d %H:%M')}")
         heapq.heappush(
             queue,
-            ScheduleEntry(now, Feature.MONITOR, config.monitor_interval_seconds),
+            ScheduleEntry(monitor_start, Feature.MONITOR, config.monitor_interval_seconds),
         )
         logger.info(f"Monitor scheduled every {config.monitor_interval_seconds / 3600:.1f}h")
+        if config.monitor_windows:
+            logger.info(f"Monitor windows: {config.monitor_windows}")
 
     if not config.monitor_only:
         amazon_start = now
@@ -237,8 +246,13 @@ def _execute_entry(entry: ScheduleEntry, config: DaemonConfig) -> datetime | Non
     Returns an override for the next run time, or None to use the default interval.
     """
     if entry.feature == Feature.MONITOR:
-        _run_monitor()
-        return None
+        if _in_window(config.monitor_windows):
+            _run_monitor()
+            return None
+        else:
+            next_open = _next_window_start(config.monitor_windows)
+            logger.info(f"Monitor skipped — outside windows, next attempt at {next_open.strftime('%Y-%m-%d %H:%M')}")
+            return next_open
     elif entry.feature == Feature.AMAZON:
         if _in_window(config.amazon_windows):
             _run_amazon()
@@ -256,6 +270,7 @@ def run_daemon(
     monitor_schedule: str = "",
     amazon_interval: float = 0,
     amazon_windows: str = "",
+    monitor_windows: str = "",
     monitor_only: bool = False,
     amazon_only: bool = False,
 ) -> None:
@@ -270,7 +285,9 @@ def run_daemon(
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    config = _build_config(monitor_schedule, amazon_interval, amazon_windows, monitor_only, amazon_only)
+    config = _build_config(
+        monitor_schedule, amazon_interval, amazon_windows, monitor_windows, monitor_only, amazon_only
+    )
     queue = _build_queue(config)
 
     if not queue:
