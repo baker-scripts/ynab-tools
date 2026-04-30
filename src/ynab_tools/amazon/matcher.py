@@ -48,12 +48,17 @@ def locate_by_amount(
         if best_idx is not None:
             return best_idx, True
 
-        # Log near-misses for debugging
-        for order in amazon_orders:
-            diff = abs(order.transaction_total - target)
+        # Log best near-miss for debugging
+        best_near = min(
+            amazon_orders,
+            key=lambda o: abs(o.transaction_total - target),
+            default=None,
+        )
+        if best_near is not None:
+            diff = abs(best_near.transaction_total - target)
             if diff <= tolerance_decimal * 2:
-                logger.info(
-                    f"Near-miss: Amazon ${order.transaction_total:.2f} "
+                logger.debug(
+                    f"Near-miss: Amazon ${best_near.transaction_total:.2f} "
                     f"vs YNAB ${-amount:.2f} (diff: ${diff:.2f}, tolerance: ${tolerance:.2f})"
                 )
 

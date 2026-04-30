@@ -193,8 +193,8 @@ class TestGetYnabTransactions:
 
     @patch("ynab_tools.amazon.sync.get_settings")
     @patch("ynab_tools.amazon.sync.fetch_payees")
-    def test_legacy_mode_missing_temp_payee_returns_empty(self, mock_payees, mock_settings):
-        """Legacy match_empty_memo=False gracefully returns empty when temp payee missing."""
+    def test_legacy_mode_missing_temp_payee_raises_config_error(self, mock_payees, mock_settings):
+        """Legacy match_empty_memo=False raises ConfigError when temp payee missing."""
         mock_settings.return_value = MagicMock(
             ynab_payee_name_processing_completed="Amazon",
             ynab_payee_name_to_be_processed="Amazon - Needs Memo",
@@ -206,6 +206,5 @@ class TestGetYnabTransactions:
 
         client = MagicMock()
         client.budget_id = "test-budget"
-        txns, payee = get_ynab_transactions(client)
-        assert txns == []
-        assert payee.name == "Amazon"
+        with pytest.raises(ConfigError, match="Payee 'Amazon - Needs Memo' not found"):
+            get_ynab_transactions(client)

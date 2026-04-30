@@ -77,14 +77,30 @@ def _compute_statement_balance(
     data = client.get(f"/budgets/{client.budget_id}/accounts/{account_id}/transactions?since_date={since_str}")
 
     post_close_sum = 0
+    post_close_payments = 0
     for txn in data.get("transactions", []):
         if txn.get("deleted"):
             continue
         if txn.get("cleared", "") in ("cleared", "reconciled"):
             post_close_sum += txn["amount"]
+            # Track payments received (transfers in, e.g. from checking)
+            if txn.get("transfer_account_id") and txn["amount"] > 0:
+                post_close_payments += txn["amount"]
 
     statement_balance_milliunits = cleared_balance_milliunits - post_close_sum
-    payment_dollars = max(0.0, -milliunits_to_dollars(statement_balance_milliunits))
+    # Subtract payments already made toward this statement
+    remaining_milliunits = statement_balance_milliunits + post_close_payments
+    payment_dollars = max(0.0, -milliunits_to_dollars(remaining_milliunits))
+
+    if post_close_payments:
+        paid_dollars = milliunits_to_dollars(post_close_payments)
+        statement_dollars = max(0.0, -milliunits_to_dollars(statement_balance_milliunits))
+        logger.debug(
+            f"Statement balance: ${statement_dollars:,.2f}, "
+            f"payments applied: ${paid_dollars:,.2f}, "
+            f"remaining: ${payment_dollars:,.2f}"
+        )
+
     return payment_dollars, last_close
 
 
@@ -113,14 +129,24 @@ def _payments_from_close_dates(
     close_dates: dict[str, int],
     cc_accounts: dict[str, str],
     cc_cleared: dict[str, dict[str, Any]],
-) -> dict[str, CreditCardPayment]:
-    """Compute statement-based payments for cards with configured close dates."""
+) -> tuple[dict[str, CreditCardPayment], set[str]]:
+    """Compute statement-based payments for cards with configured close dates.
+
+    Returns:
+        Tuple of (payments dict, set of account IDs that were checked — including $0 balance).
+    """
     payments: dict[str, CreditCardPayment] = {}
+    checked_ids: set[str] = set()
     for card_name, close_day in close_dates.items():
         account_id = cc_accounts.get(card_name)
         if not account_id:
-            logger.warning(f"CC close date configured for '{card_name}' but no matching account found")
+            available = ", ".join(sorted(cc_accounts.keys()))
+            logger.warning(
+                f"CC close date configured for '{card_name}' but no matching YNAB account found. "
+                f"Available CC accounts: [{available}]"
+            )
             continue
+        checked_ids.add(account_id)
         info = cc_cleared[account_id]
         amount, last_close = _compute_statement_balance(
             client, account_id, info["cleared_balance_milliunits"], close_day
@@ -131,16 +157,22 @@ def _payments_from_close_dates(
                 amount=amount,
                 source=f"statement ({last_close})",
             )
-    return payments
+        else:
+            logger.debug(f"{card_name}: $0 remaining on statement ({last_close})")
+    return payments, checked_ids
 
 
 def _payments_from_categories(
     client: YnabClient,
     cc_accounts: dict[str, str],
     existing_payments: dict[str, CreditCardPayment],
+    checked_ids: set[str],
     cc_categories_str: str,
 ) -> dict[str, CreditCardPayment]:
-    """Fall back to category balances for CCs without close dates."""
+    """Fall back to category balances for CCs without close dates.
+
+    Cards already checked via close dates (including $0 balance) are skipped.
+    """
     cc_filter: set[str] = set()
     if cc_categories_str:
         cc_filter = {c.strip() for c in cc_categories_str.split(",")}
@@ -156,7 +188,7 @@ def _payments_from_categories(
             if cc_filter and cat["id"] not in cc_filter and cat["name"] not in cc_filter:
                 continue
             account_id = cc_accounts.get(cat["name"])
-            if account_id and account_id not in payments:
+            if account_id and account_id not in payments and account_id not in checked_ids:
                 available = milliunits_to_dollars(cat["balance"])
                 if available > 0:
                     payments[account_id] = CreditCardPayment(
@@ -188,12 +220,14 @@ def get_cc_payment_amounts(
     assert all_accounts is not None  # guaranteed by branch above
     cc_accounts, cc_cleared = _find_cc_accounts(all_accounts)
     close_dates = parse_cc_close_dates(close_dates_str)
-    cc_payments = _payments_from_close_dates(client, close_dates, cc_accounts, cc_cleared)
+    cc_payments, checked_ids = _payments_from_close_dates(client, close_dates, cc_accounts, cc_cleared)
 
-    # If all CCs have close dates, skip category fallback
-    uncovered = {name for name in cc_accounts if cc_accounts[name] not in cc_payments}
+    # Fall back to category balances for CCs not covered by close dates
+    uncovered = {
+        name for name in cc_accounts if cc_accounts[name] not in cc_payments and cc_accounts[name] not in checked_ids
+    }
     if uncovered:
-        cc_payments = _payments_from_categories(client, cc_accounts, cc_payments, cc_categories_str)
+        cc_payments = _payments_from_categories(client, cc_accounts, cc_payments, checked_ids, cc_categories_str)
 
     total = sum(p.amount for p in cc_payments.values())
     logger.info(f"Credit card payments to account for: ${total:,.2f}")
@@ -287,4 +321,7 @@ def update_cc_payment_amount(
         else:
             logger.info(f"{cc_name}: already correct at ${payment_amount:,.2f}")
     else:
-        logger.warning(f"No scheduled payment found for {cc_name}, skipping")
+        logger.warning(
+            f"No scheduled payment found for {cc_name} (expected ${payment_amount:,.2f}). "
+            f"Create a scheduled transfer from checking to this card in YNAB."
+        )

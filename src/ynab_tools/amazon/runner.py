@@ -163,7 +163,7 @@ def _process_transaction(
         logger.info(
             f"DRY RUN: Would update {txn.id} with memo ({len(memo)} chars) for order #{amazon_order.order_number}"
         )
-        return 1, 1, 0, []
+        return 1, 0, 0, []
 
     try:
         update_ynab_transaction(client, txn.id, memo=memo, payee_id=target_payee.id)
@@ -172,7 +172,7 @@ def _process_transaction(
         raise FatalSyncError(f"Update failed: {e}") from e
     except TransientError as e:
         logger.error(f"Failed to update {txn.id}: {e}")
-        return 1, 1, 0, [f"Update failed for {txn.id}: {e}"]
+        return 1, 0, 0, [f"Update failed for {txn.id}: {e}"]
 
 
 def _build_and_process_memo(amazon_order: AmazonOrder) -> str:

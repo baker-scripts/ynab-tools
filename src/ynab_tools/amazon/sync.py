@@ -71,11 +71,11 @@ def get_ynab_transactions(
     else:
         needs_memo_payee = find_payee_by_name(payees, s.ynab_payee_name_to_be_processed)
         if needs_memo_payee is None:
-            logger.warning(
-                f"Payee '{s.ynab_payee_name_to_be_processed}' not found — "
-                f"set MATCH_EMPTY_MEMO=true (default) to use '{s.ynab_payee_name_processing_completed}' payee instead"
+            raise ConfigError(
+                f"Payee '{s.ynab_payee_name_to_be_processed}' not found in YNAB. "
+                f"Either create the payee or set MATCH_EMPTY_MEMO=true (default) to use "
+                f"'{s.ynab_payee_name_processing_completed}' payee instead"
             )
-            return [], target_payee
         raw_txns = fetch_transactions_by_payee(client, needs_memo_payee.id)
         txns = [t for t in raw_txns if not t.approved and t.date >= str(min_date)]
 
